@@ -16,7 +16,7 @@ def get_env_vars() -> dict:
     Fetches the enviroment variables
     """
 
-    with open("env_variables.json", "r") as f:
+    with open("./storage/other/env_variables.json", "r") as f:
         env_vars = json.load(f)
     
     return env_vars
