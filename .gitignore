@@ -1,2 +1,4 @@
 dev/
 utils/__pycache__/
+storage/csv_backup
+env_variables.json
