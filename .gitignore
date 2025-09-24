@@ -2,3 +2,5 @@ dev/
 utils/__pycache__/
 storage/csv_backup
 env_variables.json
+data/__pycache__
+.DS_Store

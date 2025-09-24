@@ -1,6 +1,9 @@
 import psycopg2 as pc
 import json
 
+from sqlalchemy import create_engine
+
+
 def get_ticker_list() -> list:
     """
     Fetches the ticker list
@@ -45,3 +48,11 @@ def db_connect():
         password = get_env_var("db_password"))
     
     return db
+
+
+def create_db_engine():
+    """
+    Creates the engine to use for the df.to_sql function.
+    """
+
+    return create_engine(f"postgresql://{get_env_var("db_user")}:{get_env_var("db_password")}@{get_env_var("db_host")}:5432/{get_env_var("db_name")}")
