@@ -1,7 +1,10 @@
 import psycopg2 as pc
 import json
+import os
 
 from sqlalchemy import create_engine
+
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def get_ticker_list() -> list:
