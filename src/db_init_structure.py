@@ -1,4 +1,3 @@
-import psycopg2 as pc
 import sys
 import os
 
