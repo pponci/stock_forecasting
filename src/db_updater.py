@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import datetime
 import glob
 import sys
@@ -6,25 +7,7 @@ import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.helpers import create_db_engine, get_env_var
-
-def data_to_db(data : pd.DataFrame, ticker_name : str, end_date : datetime.date):
-    """
-    Saves the data in the database.
-    """
-
-    data.Datetime = data.Datetime.astype(str)
-
-    data["ref_date"] = data.Datetime.str.split().str[0]
-    data["ref_time"] = data.Datetime.str.split().str[1].str.split("-").str[0]
-    data["ext_date"] = end_date
-
-    data.rename({"Datetime" : "ref_datetime", "Open" : "v_open", "High" : "v_high", "Low" : "v_low", "Close" : "v_close", "Volume" : "v_volume"}, axis = 1, inplace = True)
-    data = data[["ext_date", "ref_date", "ref_time", "ref_datetime", "v_open", "v_high", "v_low", "v_close", "v_volume"]]
-
-    engine = create_db_engine()
-    data.to_sql(f"tab_{ticker_name}", con = engine, schema = "raw_all", if_exists = "append", index = False)
-
+from utils.helpers import create_db_engine, get_env_var, db_connect, get_ticker_list
 
 def compute_csv_paths():
     """
@@ -57,5 +40,97 @@ def compute_csv_paths():
     df_csv.to_csv("./storage/other/csv_paths.csv")
 
 
+def get_last_date() -> pd.DataFrame:
+    """
+    Computes a dataframe with the last date present in the db
+    for each ticker, checking in the raw all schema.
+    """
+
+    db = db_connect()
+    cur = db.cursor()
+
+    df_dates = pd.DataFrame(columns = ["ticker", "last_date"])
+
+    ticker_list = get_ticker_list()
+
+    for ticker in ticker_list:
+        sql_str = f"""
+        SELECT
+            ext_date
+        FROM
+            raw_all.tab_{ticker}
+        ORDER BY
+            ext_date DESC
+        LIMIT 1;
+        """
+
+        cur.execute(sql_str)
+        res_sql = cur.fetchall()
+
+        if len(res_sql) == 0:
+            last_date = "none"
+
+        else:
+            last_date = res_sql[0][0]    
+
+        df_dates.loc[len(df_dates)] = {"ticker" : ticker, "last_date" : last_date}
+
+
+    db.close()
+    cur.close()
+
+    return df_dates
+
+
+def data_to_db(data : pd.DataFrame, ticker_name : str, end_date : datetime.date):
+    """
+    Saves the data in the database.
+    """
+
+    ticker_name = ticker_name.lower()
+
+    data["Datetime"] = data["Datetime"].astype(str)
+
+    data["ref_date"] = data.Datetime.str.split().str[0]
+    data["ref_time"] = data.Datetime.str.split().str[1].str.split("-").str[0]
+    data["ext_date"] = end_date
+
+    data.rename({"Datetime" : "ref_datetime", "Open" : "v_open", "High" : "v_high", "Low" : "v_low", "Close" : "v_close", "Volume" : "v_volume"}, axis = 1, inplace = True)
+    data = data[["ext_date", "ref_date", "ref_time", "ref_datetime", "v_open", "v_high", "v_low", "v_close", "v_volume"]]
+
+    engine = create_db_engine()
+    data.to_sql(f"tab_{ticker_name}", con = engine, schema = "raw_all", if_exists = "append", index = False)
+
+
+def raw_all_upload():
+    """
+    Based on the last available date in the database for each ticker, the function
+    selects the files to upload into the db, in the raw all schema.
+    """
+
+    df_csv = pd.read_csv("./storage/other/csv_paths.csv", index_col = 0, parse_dates = ["ext_date"])
+
+    df_last_dates = get_last_date()
+    last_dates = df_last_dates.last_date.unique().tolist()
+
+    for last_date in last_dates:
+        ticker_list = df_last_dates.loc[df_last_dates.last_date == last_date, "ticker"].tolist()
+
+        if last_date == "none":
+            file_paths = df_csv.loc[df_csv.ticker.isin(ticker_list), "path"].tolist()
+        
+        else:
+            file_paths = df_csv.loc[(df_csv.ticker.isin(ticker_list)) & (df_csv.ext_date > np.datetime64(last_date)), "path"].tolist()
+
+        if len(file_paths) > 0 :
+            for file_path in file_paths:
+                ticker_name = file_path[65:-15]
+                ext_date = file_path[-14:-4].replace("_", "-")
+                data = pd.read_csv(file_path, index_col = 0)
+
+                if not data.empty:
+                    data_to_db(data = data, ticker_name = ticker_name, end_date = ext_date)
+
+
 if __name__ == "__main__":
-    compute_csv_paths()
+    raw_all_upload()

@@ -131,3 +131,5 @@ if __name__ == "__main__":
     create_schemas()
 
     create_tables_views()
+
+    print("done")
