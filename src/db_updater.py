@@ -58,7 +58,7 @@ def get_last_date() -> pd.DataFrame:
         SELECT
             ext_date
         FROM
-            raw_all.tab_{ticker}
+            raw_all.vw_{ticker}
         ORDER BY
             ext_date DESC
         LIMIT 1;
@@ -131,6 +131,55 @@ def raw_all_upload():
                 if not data.empty:
                     data_to_db(data = data, ticker_name = ticker_name, end_date = ext_date)
 
+def all_to_unique():
+    """
+    Updates the values in the raw_unique schema adding only
+    the dates missing from said schema.
+    """
+
+    db = db_connect()
+    cur = db.cursor()
+
+    ticker_list = get_ticker_list()
+
+    for ticker in ticker_list:
+        sql_str = f"""
+        INSERT INTO raw_unique.tab_{ticker}(
+            SELECT
+                ref_date,
+                ref_time,
+                ref_datetime,
+                v_open,
+                v_high,
+                v_low,
+                v_close,
+                v_volume
+            FROM
+                raw_all.vw_{ticker}
+            WHERE
+                ext_rank = 1
+                    AND
+                ref_date > (
+                            SELECT
+                                COALESCE(MAX(ref_date), '2000-01-01')
+                            FROM
+                                raw_unique.vw_{ticker})
+        );
+        """
+        cur.execute(sql_str)
+        db.commit()
+
+    cur.close()
+    db.close()
 
 if __name__ == "__main__":
+    print("starting raw_all_upload...")
     raw_all_upload()
+    print("done raw_all_upload...")
+
+    print("starting all_to_unique...")
+    all_to_unique()
+    print("done all_to_unique...")
+
+
+    print("done")
