@@ -1,0 +1,9 @@
+- refactor the code for the data download and db update
+    - add to data pipeline file a check if file csv_paths exists otherwise compute
+
+- chagne env varibales from json to .env file
+
+- docker container for data pipeline
+
+- docker container for database
+
