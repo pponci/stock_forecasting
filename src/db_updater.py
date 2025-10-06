@@ -10,6 +10,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.helpers import create_db_engine, get_env_var, db_connect, get_ticker_list
 
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 def compute_csv_paths():
     """
     Computes all file paths in the backup dir and saves

@@ -1,5 +1,8 @@
 import downloader as dowloader
 import db_updater as db_updater
+import os
+
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 dowloader.download_pipeline()
 
