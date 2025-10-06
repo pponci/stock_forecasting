@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import pandas_market_calendars as mcal
 import datetime
 import glob
 import sys
@@ -40,11 +41,19 @@ def compute_csv_paths():
     df_csv.to_csv("./storage/other/csv_paths.csv")
 
 
-def get_last_date() -> pd.DataFrame:
+def get_last_date(schema : str) -> pd.DataFrame:
     """
     Computes a dataframe with the last date present in the db
     for each ticker, checking in the raw all schema.
     """
+
+    if schema == "raw_all":
+        target_date = "ext_date"
+    elif schema in ["raw_unique", "filled"]:
+        target_date = "ref_date"
+    else:
+        print("invalida schema value")
+        return
 
     db = db_connect()
     cur = db.cursor()
@@ -56,22 +65,18 @@ def get_last_date() -> pd.DataFrame:
     for ticker in ticker_list:
         sql_str = f"""
         SELECT
-            ext_date
+            MAX({target_date})
         FROM
-            raw_all.vw_{ticker}
-        ORDER BY
-            ext_date DESC
-        LIMIT 1;
+            {schema}.vw_{ticker};
         """
 
         cur.execute(sql_str)
         res_sql = cur.fetchall()
 
-        if len(res_sql) == 0:
-            last_date = "none"
+        last_date = res_sql[0][0]
 
-        else:
-            last_date = res_sql[0][0]    
+        if not last_date:
+            last_date = "none"  
 
         df_dates.loc[len(df_dates)] = {"ticker" : ticker, "last_date" : last_date}
 
@@ -110,7 +115,7 @@ def raw_all_upload():
 
     df_csv = pd.read_csv("./storage/other/csv_paths.csv", index_col = 0, parse_dates = ["ext_date"])
 
-    df_last_dates = get_last_date()
+    df_last_dates = get_last_date(schema = "raw_all")
     last_dates = df_last_dates.last_date.unique().tolist()
 
     for last_date in last_dates:
@@ -172,6 +177,63 @@ def all_to_unique():
     cur.close()
     db.close()
 
+
+def unique_to_filled():
+    """
+    Updates the values in the filled schema adding only
+    the dates missing.
+    """
+    engine = create_db_engine()
+
+    defaul_start_date = datetime.datetime(2023, 11, 26).date()
+
+    df_time = pd.read_csv("./storage/other/time.csv", index_col = 0)
+
+    nasdaq_cal = mcal.get_calendar("NASDAQ")
+
+    df_last_date = get_last_date(schema = "filled")
+    last_dates = df_last_date.last_date.unique().tolist()
+
+    for last_date in last_dates:
+        ticker_list = df_last_date.loc[df_last_date.last_date == last_date, "ticker"].tolist()
+
+        if last_date == "none":
+            last_date = defaul_start_date
+        
+        open_days_ts = nasdaq_cal.valid_days(
+            start_date = last_date + datetime.timedelta(days = + 1), 
+            end_date = datetime.datetime.now().date() + datetime.timedelta(days = -1)).tolist()
+        open_days = [str(x).split()[0] for x in open_days_ts]
+        df_open_days = pd.DataFrame(open_days, columns = ["ref_date"])
+        df_open_days = df_open_days.merge(df_time, how = "cross")
+
+        for ticker in ticker_list:
+            sql_str = f"""
+                        SELECT
+                            *
+                        FROM
+                            raw_unique.vw_{ticker}
+                        WHERE
+                            ref_date > '{last_date}'
+                        ORDER BY
+                            ref_datetime
+                        ;"""
+            
+            raw_data = pd.read_sql(sql = sql_str, con = engine)
+            raw_data.ref_date = raw_data.ref_date.astype(str)
+            raw_data.ref_time = raw_data.ref_time.astype(str)
+            raw_data.ref_datetime = raw_data.ref_datetime.str[:-6]
+
+            if not raw_data.empty:
+                data = raw_data.merge(df_open_days, on = ["ref_date", "ref_time"], how = "right")
+
+                data.v_volume = data.v_volume.fillna(value = 0.0)
+                data.ref_datetime = data.ref_datetime.fillna(data.ref_date + " " + data.ref_time)
+                data.ffill(axis = 0, inplace = True)
+
+                data.to_sql(f"tab_{ticker.lower()}", con = engine, schema = "filled", if_exists = "append", index = False)
+
+
 if __name__ == "__main__":
     print("starting raw_all_upload...")
     raw_all_upload()
@@ -181,5 +243,8 @@ if __name__ == "__main__":
     all_to_unique()
     print("done all_to_unique...")
 
+    print("starting unique_to_filled...")
+    unique_to_filled()
+    print("done unique_to_filled...")
 
     print("done")
