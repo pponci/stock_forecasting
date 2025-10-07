@@ -20,7 +20,7 @@ def compute_csv_paths():
 
     df_csv = pd.DataFrame(columns = ["ext_date", "ticker", "path"])
 
-    csv_dir = get_env_var("backup_dir1")
+    csv_dir = get_env_var("BACKUP_DIR1")
 
     months = glob.glob(csv_dir + "/*")
     months.sort()

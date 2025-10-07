@@ -1,2 +1,7 @@
 yfinance
 psycopg2-binary
+pandas_market_calendars
+pandas
+numpy
+sqlalchemy
+dotenv

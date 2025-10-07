@@ -7,7 +7,7 @@ os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if not os.path.exists("./storage/other/csv_paths.csv"):
     db_updater.compute_csv_paths()
 
-dowloader.download_pipeline()
+dowloader.downloader()
 
 db_updater.raw_all_upload()
 

@@ -32,7 +32,7 @@ def csv_data_backup(data : pd.DataFrame, ticker_name : str, end_date : datetime.
 
     df_csv_paths = pd.read_csv("./storage/other/csv_paths.csv", index_col = 0)
 
-    backup_dirs = [get_env_var(key = "backup_dir1"), get_env_var(key = "backup_dir2")]
+    backup_dirs = [get_env_var(key = "BACKUP_DIR1"), get_env_var(key = "BACKUP_DIR2")]
 
     for backup_dir in backup_dirs:
 
@@ -52,13 +52,13 @@ def csv_data_backup(data : pd.DataFrame, ticker_name : str, end_date : datetime.
 
         data.to_csv(file_path)
 
-        if backup_dir == get_env_var(key = "backup_dir1"):
+        if backup_dir == get_env_var(key = "BACKUP_DIR1"):
             df_csv_paths.loc[len(df_csv_paths)] = {"ext_date" : end_date, "ticker" : ticker_name, "path" : file_path}
     
     df_csv_paths.to_csv("./storage/other/csv_paths.csv")
 
 
-def download_pipeline():
+def downloader():
 
     end_date = datetime.datetime.now().date()
     start_date = end_date + datetime.timedelta(days = -6)
@@ -73,4 +73,4 @@ def download_pipeline():
 
 
 if __name__ == "__main__":
-    download_pipeline()
+    downloader()
